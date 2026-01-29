@@ -11,10 +11,13 @@ app = FastAPI()
 WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
 PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+VERIFY_TOKEN = os.getenv("VERIFY_TOKEN")
+
 
 @app.get("/")
 def health_check():
     return {"status": "ok", "message": "WhatsApp Agent running"}
+
 
 def send_whatsapp_message(to: str, message: str):
     url = f"https://graph.facebook.com/v18.0/{PHONE_NUMBER_ID}/messages"
@@ -27,7 +30,10 @@ def send_whatsapp_message(to: str, message: str):
         "to": to,
         "text": {"body": message}
     }
-    requests.post(url, headers=headers, json=payload)
+
+    response = requests.post(url, headers=headers, json=payload)
+    print("WhatsApp response:", response.status_code, response.text)
+
 
 def ask_openai(prompt: str) -> str:
     response = requests.post(
@@ -44,7 +50,9 @@ def ask_openai(prompt: str) -> str:
             ]
         }
     )
+
     return response.json()["choices"][0]["message"]["content"]
+
 
 @app.post("/webhook")
 async def whatsapp_webhook(request: Request):
@@ -59,19 +67,19 @@ async def whatsapp_webhook(request: Request):
         send_whatsapp_message(from_number, ai_response)
 
     except Exception as e:
-        print("Error:", e)
+        print("Webhook error:", e)
 
     return JSONResponse(content={"status": "received"})
 
-@app.get("/webhook")
-def verify_webhook(
-    hub_mode: str = None,
-    hub_challenge: str = None,
-    hub_verify_token: str = None
-):
-    VERIFY_TOKEN = os.getenv("VERIFY_TOKEN")
 
-    if hub_mode == "subscribe" and hub_verify_token == VERIFY_TOKEN:
-        return int(hub_challenge)
+@app.get("/webhook")
+def verify_webhook(request: Request):
+    mode = request.query_params.get("hub.mode")
+    token = request.query_params.get("hub.verify_token")
+    challenge = request.query_params.get("hub.challenge")
+
+    if mode == "subscribe" and token == VERIFY_TOKEN:
+        return int(challenge)
 
     return JSONResponse(status_code=403, content={"error": "Verification failed"})
+    
