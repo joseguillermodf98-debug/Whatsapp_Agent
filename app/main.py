@@ -37,21 +37,24 @@ def send_whatsapp_message(to: str, message: str):
 
 def ask_openai(prompt: str) -> str:
     response = requests.post(
-        "https://api.openai.com/v1/chat/completions",
+        "https://api.openai.com/v1/responses",
         headers={
             "Authorization": f"Bearer {OPENAI_API_KEY}",
             "Content-Type": "application/json"
         },
         json={
-            "model": "gpt-4o-mini",
-            "messages": [
-                {"role": "system", "content": "You are a helpful WhatsApp assistant."},
-                {"role": "user", "content": prompt}
-            ]
+            "model": "gpt-4.1-mini",
+            "input": prompt
         }
     )
 
-    return response.json()["choices"][0]["message"]["content"]
+    data = response.json()
+
+    try:
+        return data["output"][0]["content"][0]["text"]
+    except Exception:
+        print("OpenAI raw response:", data)
+        return "Lo siento, hubo un error procesando tu mensaje."
 
 
 @app.post("/webhook")
